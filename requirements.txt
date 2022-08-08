@@ -1,0 +1,5 @@
+appkit==0.2.8
+foundation==0.1.0a0.dev1
+requests==2.23.0
+pillow==9.2.0
+xlib==0.21

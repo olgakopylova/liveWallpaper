@@ -1,11 +1,9 @@
-import json, sys, os, ctypes
+import json, sys, os, ctypes, time
 from datetime import date, datetime
 import calendar
 #import Quartz
 #from pynput import mouse
 from PIL import Image, ImageDraw, ImageFont
-from AppKit import NSWorkspace, NSColor, NSScreen, NSWorkspaceDesktopImageScalingKey, NSWorkspaceDesktopImageFillColorKey, NSImageScaleProportionallyUpOrDown
-from Foundation import NSURL, NSDictionary
 import requests
 
 class POINT(ctypes.Structure):
@@ -16,25 +14,27 @@ class POINT(ctypes.Structure):
     def toString(self):
         return f'x: {self.x} y: {self.y}'
 
-class Cache:
-    def __init__(self):
-        self.filename = 'resources/cache/settings.json'#'/Users/olga/Library/Caches/live_wallpaper_cache'
+
+
+class File:
+    def __init__(self, path):
+        self.filename = f'resources/{path}'
         self.checkExist()
         self.content = False
-        self.cache = False
-
-    def toString(self):
-        return json.dumps(self.cache, indent=4, ensure_ascii=False)
+        self.text = False
 
     def checkExist(self):
         if not os.path.exists(self.filename):
-            self.createCache()
+            self.createFile()
             self.save()
 
     def writeToFile(self, content):
         f = open(self.filename, 'w', encoding='utf8')
         f.write(content)
         f.close()
+
+    def toString(self):
+        return json.dumps(self.cache, indent=4, ensure_ascii=False)
 
     def save(self):
         self.writeToFile(self.toString())
@@ -50,24 +50,47 @@ class Cache:
             sys.exit()
         self.readFile()
         try:
-            self.cache = json.loads(self.content)
+            self.text = json.loads(self.content)
         except:
-            self.createCache()
+            self.createFile()
             self.save()
             return self.read(i + 1)
 
-    def createCache(self):
-        self.cache = {
+    def createFile(self):
+        self.text = {
             'version': 'v1.0'
         }
 
+
+class Log(File):
+    def __init__(self):
+        path = f'resources/log/{Date.get("Y-m-d")}'
+        File.__init__(self, path)
+
+    def toString(self):
+        return f'x: {self.x} y: {self.y}'
+
+    def save(self):
+        self.writeToFile(self.toString())
+
+class Cache(File):
+    def __init__(self):
+        path = 'cache/settings.json'
+        File.__init__(self, path)
+
+    def toString(self):
+        return json.dumps(self.text, indent=4, ensure_ascii=False)
+
+    def save(self):
+        self.writeToFile(self.toString())
+
     def put(self, index, body):
-        self.cache[index] = body
+        self.text[index] = body
         self.save()
 
     def get(self, index, default):
-        if index in self.cache:
-            return self.cache[index]
+        if index in self.text:
+            return self.text[index]
         self.put(index, default)
         return default
 
@@ -75,7 +98,7 @@ cache = Cache()
 cache.read()
 
 class Date:
-    def getDay():
+    def getDayName():
         now = date.today()
         # название дня на англ
         return calendar.day_name[now.weekday()]
@@ -128,7 +151,6 @@ class Theme:
 
     def get():
         mode = (Date.countDays() // 30) - 1
-        print(mode)
         return Theme.getList()[mode]
 
 
@@ -151,6 +173,8 @@ class OSManager:
         elif sys.platform in ['Windows', 'win32', 'cygwin']:
             self.os = WinOS()
         elif sys.platform in ['Mac', 'darwin', 'os2', 'os2emx']:
+            from appkit import NSWorkspace, NSColor, NSScreen, NSWorkspaceDesktopImageScalingKey, NSWorkspaceDesktopImageFillColorKey, NSImageScaleProportionallyUpOrDown
+            from foundation import NSURL, NSDictionary
             self.os = MacOS()
         else:
             print("sys.platform={platform} is unknown. Please report."
@@ -170,9 +194,7 @@ class Main:
         self.width = int(self.osManager.os.getWeightScreen())
         self.height = int(self.osManager.os.getHeightScreen())
 
-        self.render = Render(width=self.width,
-                             height=self.height,
-                             theme=self.theme)
+        self.render = Render(width=self.width, height=self.height, theme=self.theme)
 
         #self.mousePos = False
         #self.mouseDown = False
@@ -200,7 +222,7 @@ class Main:
 
         self.render.setFont('font.otf', 100)
 
-        c = self.render.setCentralText(self.height / 3 - 100, Date.getDay())
+        c = self.render.setCentralText(self.height / 3 - 100, Date.getDayName() + ' ' + d_m_Y)
 
         self.render.setFont('font.otf', 80)
         d = self.render.setCentralText(self.height / 3 - 10, str(Date.countDays()) + ' DAYS')
@@ -210,35 +232,22 @@ class Main:
         if not self.openCities:
             self.render.setFont('font.otf', 40)
             if self.weather:
-                #s = self.render.setText(5, 5, str(self.weather[0]), theme['text'])
-                #self.render.addButton(s, cityBtn, True)
-                print(self.weather)
-                self.render.setText(5, s.y2 + 20, f'{str(self.weather[1])}  {str(self.weather[2])}', theme['text'])
-       # else:
-       #     self.render.setFont('font.otf', 25)
-       #     s = self.render.setText(5, 5, 'Выберите город: ', theme['fg'])
-       #     tbl = Weather.getCities()
-       #     for i in range(len(tbl)):
-       #         s = self.render.setText(10, s.y2 + 5, tbl[i][0], theme['text'])
-       #         self.render.addButton(s, lambda index=i: setCity(index), True)
-
+                self.render.setText(5, d.y2 + 20, f'{str(self.weather[1])}  {str(self.weather[2])}', theme['text'])
 
         try:
             self.render.save()
-            #self.setWallpaper('resources/tmp/temp.png')
+            self.setWallpaper('resources/tmp/wallpaper.png')
         except:
-            if i > 2:
-                return
-            self.update(i + 1)
+            print('smth went wrong')
 
     def start(self):
-        #while True:
-        self.weather = Weather.getData()
-        self.update()
+        while True:
+            self.weather = Weather.getData()
+            self.update()
 
-           # while self.minutes == Date.get('%M'):
-                #self.update()
-                #time.sleep(3600)
+            while self.minutes == Date.get('%M'):
+                self.update()
+                time.sleep(60)
 
 
 class Weather:
@@ -352,8 +361,8 @@ class Render:
     def save(self):
         self.object.save('resources/tmp/wallpaper.png')
 
-    def setWallpaper(self, os, filemane):
-        os.setWallpaper(filemane)
+    def setWallpaper(self, systemOS, filename):
+        systemOS.setWallpaper(filename)
 
 class OS:
     def setWallpaper(path):
@@ -365,9 +374,12 @@ class OS:
     def getHeightScreen(self):
         pass
 
+    def toString(self):
+        pass
+
 class MacOS(OS):
     # todo отладить установку обоев только на один экран(основной)
-    def setWallpaper(path):
+    def setWallpaper(self, path):
         imageURL = NSURL.fileURLWithPath_(path)
         sharedSpace = NSWorkspace.sharedWorkspace()
         mainScreen = NSScreen.screens()[0]
@@ -386,8 +398,11 @@ class MacOS(OS):
     def getHeightScreen(self):
         return NSScreen.mainScreen().frame().size.height
 
+    def toString(self):
+        return 'MacOS'
+
 class WinOS(OS):
-    def setWallpaper(path):
+    def setWallpaper(self, path):
         ctypes.windll.user32.SystemParametersInfoW(0x0014, 0, path, 2)
         return True
 
@@ -397,25 +412,32 @@ class WinOS(OS):
     def getWeightScreen(self):
         return ctypes.windll.user32.GetSystemMetrics(0)
 
+    def toString(self):
+        return 'WinOS'
+
+import Xlib.display
 class LinOS(OS):
-    def setWallpaper(path):
-        command = "gsettings set org.gnome.desktop.background picture-uri file:" + path
+    def setWallpaper(self, path):
+        command = "gsettings set org.gnome.desktop.background picture-uri file:/home/olga/PycharmProjects/liveWallpaper/" + path
         os.system(command)
         return True
 
     def getHeightScreen(self):
-        return ''
+        resolution = Xlib.display.Display().screen().root.get_geometry()
+        return resolution.height
 
     def getWeightScreen(self):
-        return ''
+        resolution = Xlib.display.Display().screen().root.get_geometry()
+        return resolution.width
+
+    def toString(self):
+        return 'LinOS'
 
 if __name__ == "__main__":
-   # main = Main()
-   # print(main.width, main.height)
    main = Main()
    main.start()
-   # while True:
-       # print(str(get_active_window()))
-       # time.sleep(0.5)
+   #while True:
+       #print(str(get_active_window()))
+       #time.sleep(0.5)
     #with mouse.Listener(on_move=on_move,on_click=on_click,on_scroll=on_scroll) as listener:
     #    listener.join()
